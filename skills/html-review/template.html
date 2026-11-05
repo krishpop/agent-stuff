@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>REVIEW TITLE</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1.2rem; color: #1a1a1a; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  .sub { color: #666; margin-top: 0; }
+  h2 { font-size: 1.15rem; margin-top: 2.4rem; border-bottom: 1px solid #ddd; padding-bottom: .3rem; }
+  h3 { font-size: 1rem; margin-bottom: .3rem; }
+  code, .ev { font-family: ui-monospace, monospace; font-size: .85em; background: #f4f4f4; padding: .1em .35em; border-radius: 3px; }
+  ul { padding-left: 1.2rem; }
+  .ok    { border-left: 4px solid #2e7d32; padding-left: .9rem; }
+  .bad   { border-left: 4px solid #c62828; padding-left: .9rem; }
+  .unk   { border-left: 4px solid #f9a825; padding-left: .9rem; }
+  .d { border: 1px solid #ddd; border-radius: 6px; padding: .8rem 1rem; margin: 1rem 0; }
+  .d h3 { margin-top: 0; }
+  .rec { background: #eef6ee; padding: .5rem .8rem; border-radius: 4px; margin-top: .6rem; }
+  figure { margin: 1.6rem 0; }
+  figcaption { color: #555; font-size: .9rem; margin-top: .5rem; }
+  /* offline fallback: shows the diagram source as code until mermaid replaces it */
+  pre.mermaid { font-family: ui-monospace, monospace; font-size: .8rem; background: #f4f4f4;
+                padding: .8rem; border-radius: 4px; overflow-x: auto; }
+  pre.mermaid[data-processed] { background: none; padding: 0; text-align: center; }
+  @media print { body { margin: 0; } }
+</style>
+
+<h1>REVIEW TITLE</h1>
+<p class="sub">DATE &middot; ONE-SENTENCE SCOPE</p>
+
+<h2>1. What we found</h2>
+<ul>
+  <li><strong>Plain-language finding.</strong> Why it matters in one clause.
+      <span class="ev">evidence: path/to/file.ts:123</span></li>
+</ul>
+
+<figure>
+  <pre class="mermaid">
+flowchart TD
+  A["Caller"] -->|"labelled edge"| B["Component"]
+  B -->|"what actually happens"| C["Result"]
+  class C bad
+  </pre>
+  <figcaption>Fig 1 — the one claim this diagram makes, in a sentence.</figcaption>
+</figure>
+
+<h2>2. Where things stand</h2>
+
+<div class="ok">
+  <h3>Works</h3>
+  <ul><li>…</li></ul>
+</div>
+
+<div class="bad">
+  <h3>Doesn't work</h3>
+  <ul><li>… <span class="ev">error: …</span></li></ul>
+</div>
+
+<div class="unk">
+  <h3>Unknown / untested</h3>
+  <ul><li>… (would need: …)</li></ul>
+</div>
+
+<h2>3. Decisions for you</h2>
+
+<div class="d">
+  <h3>D1 — The question, phrased as a question?</h3>
+  <ul>
+    <li><strong>Option A</strong> — what it means. <em>Cost:</em> …</li>
+    <li><strong>Option B</strong> — what it means. <em>Cost:</em> …</li>
+  </ul>
+  <p class="rec"><strong>Recommend A</strong> — one line of why.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    themeVariables: {
+      fontFamily: "system-ui, sans-serif", primaryColor: "#f4f4f4",
+      primaryBorderColor: "#999", primaryTextColor: "#1a1a1a", lineColor: "#666"
+    },
+    themeCSS: `
+      .bad > rect, .bad > path { fill: #fdecea; stroke: #c62828; }
+      .ok  > rect, .ok  > path { fill: #eef6ee; stroke: #2e7d32; }
+      .unk > rect, .unk > path { fill: #fff8e1; stroke: #f9a825; }
+    `
+  });
+</script>

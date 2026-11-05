@@ -1,0 +1,51 @@
+#!/usr/bin/env node
+// tmux's `select-layout even-vertical` / `even-horizontal` for herdr, bound to
+// prefix+= / prefix+_ in herdr/config.toml.
+//
+//   herdr-even rows    [pane]   every pane a full-width row      (tmux even-vertical)
+//   herdr-even columns [pane]   every pane a full-height column  (tmux even-horizontal)
+//
+// herdr has no native even layout: `layout.apply` rebuilds panes from a
+// description and kills the processes. The edi.layout-tools plugin already
+// solved that (park every pane in a scratch tab, replay into the original), so
+// this borrows its two functions instead of re-deriving the replay. The plugin
+// only exposes them through its interactive editor popup, hence this wrapper.
+//
+// The plugin directory carries a content hash that changes on every plugin
+// update, so resolve it by prefix rather than pinning the path.
+import { readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const shape = process.argv[2];
+const pane = process.argv[3] || process.env.HERDR_ACTIVE_PANE_ID || process.env.HERDR_PANE_ID;
+if (shape !== 'rows' && shape !== 'columns') {
+  console.error('usage: herdr-even rows|columns [pane-id]');
+  process.exit(2);
+}
+if (!pane) {
+  console.error('herdr-even: no pane id (pass one or set HERDR_ACTIVE_PANE_ID)');
+  process.exit(1);
+}
+
+const root = join(homedir(), '.config/herdr/plugins/github');
+const dir = readdirSync(root).find((d) => d.startsWith('edi.layout-tools-'));
+if (!dir) {
+  console.error('herdr-even: edi.layout-tools plugin is not installed');
+  process.exit(1);
+}
+const { comb } = await import(join(root, dir, 'reshape.mjs'));
+const { applyTreeInPlace, herdr } = await import(join(root, dir, 'herdr.mjs'));
+
+const { panes } = herdr('pane', 'layout', '--pane', pane).result.layout;
+if (panes.length <= 1) process.exit(0);
+
+// Keep the on-screen order: reading order for rows, left-to-right for columns.
+const order =
+  shape === 'columns'
+    ? (a, b) => a.rect.x - b.rect.x || a.rect.y - b.rect.y
+    : (a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x;
+const nodes = [...panes].sort(order).map((p) => ({ type: 'pane', pane_id: p.pane_id }));
+
+applyTreeInPlace(comb(nodes, shape === 'columns' ? 'right' : 'down'));
+console.log(`even ${shape}: ${nodes.length} panes`);

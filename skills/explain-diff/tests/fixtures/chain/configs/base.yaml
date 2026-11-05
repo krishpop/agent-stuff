@@ -1,0 +1,9 @@
+optimizer:
+  lr: 0.001
+  warmup: 500
+trainer:
+  batch: 32
+train_args:
+  max-iters: 30000
+data:
+  datasets: [a, b]

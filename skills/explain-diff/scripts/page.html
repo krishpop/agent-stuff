@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --fg: #1a1a1a; --muted: #5f6368; --bg: #ffffff; --panel: #f6f7f9; --line: #d7dbdf;
+    --accent: #3b6cf6; --accent-bg: #e8eefc;
+    --ok: #2e7d32; --ok-bg: #eef6ee; --bad: #c62828; --bad-bg: #fdecea; --unk: #b5620a; --unk-bg: #fff8e1;
+    --add-bg: #e6ffec; --add-fg: #116329; --del-bg: #ffebe9; --del-fg: #82071e; --mark: #fff3a3;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e6e6e6; --muted: #9aa0a6; --bg: #15171a; --panel: #1e2125; --line: #33383e;
+      --accent: #7aa2ff; --accent-bg: #1d2a4a;
+      --ok: #7bc47f; --ok-bg: #16281a; --bad: #ff8a80; --bad-bg: #3a1c1c; --unk: #ffcc66; --unk-bg: #33280f;
+      --add-bg: #12301c; --add-fg: #9be9a8; --del-bg: #3d1a1f; --del-fg: #ffb3ba; --mark: #5c4d00;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { display: grid; grid-template-columns: 15rem minmax(0, 48rem); gap: 2.5rem; justify-content: center; padding: 2.5rem 1.2rem 6rem; }
+  .sidebar { position: sticky; top: 1.5rem; align-self: start; display: flex; flex-direction: column; max-height: calc(100dvh - 3rem); }
+  .toc { overflow-y: auto; min-height: 0; font-size: .9rem; }
+  .toc ol { list-style: none; padding: 0; margin: .4rem 0 1rem; }
+  .toc li { margin: .15rem 0; }
+  .toc a { color: var(--muted); text-decoration: none; display: block; padding: .1rem .5rem; border-left: 2px solid transparent; }
+  .toc a.read { color: var(--fg); }
+  .toc a.here { border-left-color: var(--accent); color: var(--accent); }
+  .toctitle { font-weight: 600; margin: 0; }
+  .progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .progress .bar { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  header h1 { font-size: 1.9rem; line-height: 1.25; margin: .2rem 0 .6rem; }
+  .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; color: var(--accent); margin: 0; font-weight: 600; }
+  .lead { font-size: 1.12rem; }
+  .provenance, .meta { color: var(--muted); font-size: .85rem; margin: .3rem 0; }
+  h2 { font-size: 1.3rem; margin-top: 2.8rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+  a { color: var(--accent); }
+  code { font-family: var(--mono); font-size: .86em; background: var(--panel); padding: .08em .35em; border-radius: 4px; }
+  pre.code { background: var(--panel); padding: .7rem .9rem; border-radius: 6px; overflow-x: auto; }
+  pre.code code { background: none; padding: 0; }
+  blockquote { margin: .4rem 0; padding: .2rem .8rem; border-left: 3px solid var(--line); color: var(--muted); font-style: italic; }
+  .muted { color: var(--muted); } .small { font-size: .85rem; }
+  kbd { font-family: var(--mono); font-size: .8em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3em; }
+  .chip { display: inline-block; font-size: .72rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); vertical-align: middle; white-space: nowrap; }
+  .chip.done, .chip.intended { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
+  .chip.partial, .chip.unexplained, .chip.inferred { color: var(--unk); border-color: var(--unk); background: var(--unk-bg); }
+  .chip.missing, .chip.shadowed { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
+  .chip.intent { color: var(--accent); border-color: var(--accent); background: var(--accent-bg); }
+  .chip.verification { color: var(--ok); } .chip.mechanical { opacity: .7; }
+  .callout { border-radius: 6px; padding: .6rem 1rem; margin: 1rem 0; border: 1px solid var(--line); background: var(--panel); }
+  .callout h3 { margin-top: .2rem; }
+  .callout.warn { background: var(--unk-bg); border-color: var(--unk); }
+  .callout.bad { background: var(--bad-bg); border-color: var(--bad); }
+  .callout.key { background: var(--accent-bg); border-color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th { text-align: left; font-weight: 600; border-bottom: 2px solid var(--line); padding: .35rem .5rem; }
+  td { border-bottom: 1px solid var(--line); padding: .35rem .5rem; vertical-align: top; }
+  table.intents td:first-child { width: 55%; }
+  .ev { font-size: .85rem; color: var(--muted); margin-top: .2rem; }
+  .flowmap { font-size: .9rem; }
+  .flowmap a { text-decoration: none; }
+  .stepcard { border: 1px solid var(--line); border-radius: 8px; padding: .2rem 1.1rem .9rem; margin: 1.2rem 0; }
+  .stepcard.k-verification { border-left: 4px solid var(--ok); }
+  .stepcard.k-mechanical { opacity: .9; }
+  .stepcard h3 .num { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: #fff; font-size: .85rem; margin-right: .3rem; }
+  .target { margin: .8rem 0; }
+  .filename { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .85rem; margin-bottom: .2rem; }
+  .filename code { overflow-wrap: anywhere; } .filename button, .reftools button { white-space: nowrap; flex-shrink: 0; }
+  table.diff { font-family: var(--mono); font-size: .8rem; line-height: 1.45; border: 1px solid var(--line); border-radius: 6px; display: block; overflow-x: auto; }
+  table.diff td { border: none; padding: 0 .4rem; white-space: pre; }
+  table.diff td.ln { color: var(--muted); text-align: right; user-select: none; min-width: 2.6rem; }
+  table.diff td.mk { user-select: none; width: 1ch; }
+  table.diff td.src { tab-size: 4; width: 100%; }
+  tr.add td { background: var(--add-bg); } tr.add td.src, tr.add td.mk { color: var(--add-fg); }
+  tr.del td { background: var(--del-bg); } tr.del td.src, tr.del td.mk { color: var(--del-fg); }
+  tr.dim { opacity: .55; }
+  mark { background: var(--mark); color: inherit; border-radius: 2px; }
+  tr.near { opacity: .8; }
+  a.ref { text-decoration: none; } a.ref code { border-bottom: 1px dashed var(--accent); color: var(--accent); }
+  .refs .excerpt { margin: 1rem 0; scroll-margin-top: 1rem; }
+  .excerpt:target { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+  .reftools { display: flex; gap: .6rem; align-items: center; margin-bottom: .3rem; font-size: .8rem; flex-wrap: wrap; }
+  .popover { position: absolute; z-index: 10; max-width: min(46rem, 94vw); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .6rem; box-shadow: 0 8px 28px rgba(0,0,0,.18); }
+  .popover .close { float: right; }
+  details.deep { background: var(--panel); border-radius: 6px; padding: .4rem 1rem; margin: .8rem 0; }
+  details.deep summary { cursor: pointer; font-weight: 600; }
+  button { font: inherit; cursor: pointer; }
+  button.copy, .fnav button, .filters button, button.reveal, .popover .close { font-size: .78rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 5px; padding: .15rem .55rem; }
+  button.copy:hover, .fnav button:hover, button.reveal:hover { border-color: var(--accent); color: var(--accent); }
+  button.copy.done { color: var(--ok); border-color: var(--ok); }
+  figure { margin: 1.4rem 0; }
+  figcaption { color: var(--muted); font-size: .9rem; margin-top: .5rem; }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .2rem; }
+  .flow .step { display: inline-flex; align-items: center; gap: .2rem; }
+  .node { display: inline-block; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: .3rem .6rem; font-size: .88rem; }
+  .node.touch { border-color: var(--accent); background: var(--accent-bg); }
+  .node.ok { border-color: var(--ok); background: var(--ok-bg); }
+  .node.bad { border-color: var(--bad); background: var(--bad-bg); }
+  .node.unk { border-color: var(--unk); background: var(--unk-bg); }
+  .arrow { display: inline-flex; flex-direction: column; align-items: center; color: var(--muted); padding: 0 .3rem; line-height: 1; }
+  .elabel { font-size: .7rem; font-family: var(--mono); max-width: 12rem; text-align: center; }
+  ul.graph { list-style: none; padding: 0; } ul.graph li { margin: .35rem 0; }
+  .frames .fnav { display: flex; gap: .6rem; align-items: center; margin-top: .6rem; font-size: .85rem; }
+  .fcap { font-size: .9rem; margin: .5rem 0 0; }
+  pre.mermaid { font-family: var(--mono); font-size: .8rem; background: var(--panel); padding: .8rem; border-radius: 6px; overflow-x: auto; }
+  pre.mermaid[data-processed] { background: none; padding: 0; text-align: center; }
+  .cmds { display: grid; gap: .6rem; }
+  .cmd { margin: .6rem 0; } .cmdhead { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--muted); }
+  .cmd pre.code { margin: .2rem 0; white-space: pre-wrap; word-break: break-all; }
+  ol.layers { padding-left: 1.4rem; } ol.layers li { margin: .25rem 0; }
+  .chip.added { color: var(--ok); border-color: var(--ok); } .chip.removed { color: var(--bad); border-color: var(--bad); }
+  .chip.edited, .chip.moved, .chip.changed { color: var(--unk); border-color: var(--unk); }
+  .filters { display: flex; gap: .4rem; flex-wrap: wrap; margin: .5rem 0; }
+  .filters button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+  table.deltas, table.tokens { table-layout: fixed; }
+  table.deltas td, table.tokens td { overflow-wrap: anywhere; }
+  table.deltas td code, table.tokens td code { white-space: normal; overflow-wrap: anywhere; }
+  table.deltas th:nth-child(1) { width: 27%; } table.deltas th:nth-child(2) { width: 17%; }
+  table.deltas th:nth-child(3) { width: 21%; } table.deltas th:nth-child(4) { width: 15%; }
+  table.tokens th:nth-child(1) { width: 40%; } table.tokens th:nth-child(2) { width: 12%; }
+  table.deltas tr.st-shadowed td { background: var(--bad-bg); }
+  table.deltas tr.st-unexplained td { background: var(--unk-bg); }
+  table.deltas tr.st-missing td { background: var(--bad-bg); font-style: italic; }
+  .q { border: 1px solid var(--line); border-radius: 8px; padding: .4rem 1rem .8rem; margin: 1rem 0; }
+  .opts { display: grid; gap: .4rem; }
+  .opt button.pick { width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 6px; padding: .45rem .7rem; background: var(--bg); color: var(--fg); }
+  .opt button.pick:hover:not(:disabled) { border-color: var(--accent); }
+  .opt button.pick.right { border-color: var(--ok); background: var(--ok-bg); }
+  .opt button.pick.wrong { border-color: var(--bad); background: var(--bad-bg); }
+  .opt button.pick:disabled { cursor: default; }
+  .js .fb { display: none; }
+  .fb { font-size: .9rem; padding: .3rem .7rem; margin: .2rem 0 .3rem; border-left: 3px solid var(--line); }
+  .fb.show { display: block; } .fb.right { border-left-color: var(--ok); } .fb.wrong { border-left-color: var(--bad); }
+  .fb p { margin: .2rem 0; }
+  .score { margin-top: 1rem; font-weight: 600; display: flex; gap: .8rem; align-items: center; }
+  .try { border: 1px solid var(--line); border-radius: 8px; padding: .2rem 1rem .9rem; margin: 1rem 0; }
+  textarea { width: 100%; min-height: 3.2rem; font: inherit; font-size: .92rem; padding: .4rem .6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .expect { margin-top: .6rem; padding: .4rem .9rem; border-left: 3px solid var(--ok); background: var(--ok-bg); border-radius: 0 6px 6px 0; }
+  .bucket { padding-left: .9rem; margin: 1rem 0; }
+  .bucket.ok { border-left: 4px solid var(--ok); } .bucket.bad { border-left: 4px solid var(--bad); } .bucket.unk { border-left: 4px solid var(--unk); }
+  .decision { border: 1px solid var(--line); border-radius: 6px; padding: .4rem 1rem; margin: 1rem 0; }
+  .rec { background: var(--ok-bg); padding: .5rem .8rem; border-radius: 4px; }
+  ul.findings li { margin: .5rem 0; }
+  ul.conns { padding-left: 1rem; } ul.conns li { margin: .3rem 0; }
+  #notes { flex-shrink: 0; margin-top: 1rem; }
+  #notes summary { cursor: pointer; font-weight: 600; }
+  #notes p { margin: .3rem 0; }
+  #notesbox { display: block; margin: .4rem 0; height: 8rem; max-height: 25dvh; resize: vertical; }
+  @media (max-width: 1050px) {
+    .wrap { grid-template-columns: minmax(0, 48rem); padding-bottom: calc(20dvh + 10rem); }
+    .sidebar { position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 6; max-height: none; padding: .5rem 1rem; background: var(--bg); border-top: 1px solid var(--line); }
+    .toc { display: none; }
+    #notes { margin: 0; }
+    #notesbox { height: 5rem; max-height: 20dvh; }
+  }
+  /* tracks: one tab per question */
+  .tabbar { display: flex; flex-wrap: wrap; gap: .3rem; margin: 1.2rem 0 .4rem; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; padding-top: .4rem; }
+  .tab-btn { padding: .35rem .8rem; border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; text-decoration: none; color: var(--muted); font-size: .9rem; background: var(--panel); }
+  .tab-btn.p-focus { color: var(--fg); font-weight: 600; }
+  .tab-btn.p-context { font-style: italic; }
+  .tab-btn.active { background: var(--bg); color: var(--accent); border-color: var(--accent); margin-bottom: -1px; }
+  .js .tab { display: none; } .js .tab.active { display: block; }
+  ol.tracks { list-style: none; padding: 0; display: grid; gap: .6rem; }
+  .trackcard { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: .5rem .9rem; }
+  .trackcard.p-context { border-left-color: var(--line); }
+  .trackcard .tlink { text-decoration: none; font-weight: 600; font-size: 1.05rem; color: var(--fg); }
+  .trackcard .tnum { display: inline-flex; width: 1.5rem; height: 1.5rem; border-radius: 50%; align-items: center; justify-content: center; background: var(--accent); color: #fff; font-size: .8rem; }
+  .trackcard.p-context .tnum { background: var(--muted); }
+  .trackcard p { margin: .25rem 0; } .tq { font-weight: 500; } .twhy { color: var(--muted); font-size: .92rem; } .tmeta { color: var(--muted); font-size: .8rem; }
+  .chip.focus { color: var(--accent); border-color: var(--accent); background: var(--accent-bg); }
+  .chip.detail { opacity: .75; }
+  .tracktitle { border-bottom: none; margin-top: .2rem; }
+  .tracknav { margin-top: 2rem; font-size: .92rem; }
+  .toc li.tabref.active a { border-left-color: var(--accent); color: var(--accent); }
+  .toc li.p-context a { font-style: italic; }
+  /* Essentials mode folds detail steps */
+  .essentials-toggle { font-size: .8rem; margin-left: .6rem; color: var(--muted); white-space: nowrap; cursor: pointer; }
+  .detail-note { display: none; color: var(--muted); font-size: .88rem; }
+  .essentials .stepcard.detail, .essentials .flowmap .fm.detail { display: none; }
+  .js body[data-layout="tracks"] #refs { display: none; } /* excerpts still open as pop-overs */
+  .essentials .detail-note { display: block; }
+  .detail-note button { font-size: .78rem; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 5px; padding: .1rem .5rem; }
+  details.more-code > summary { cursor: pointer; color: var(--muted); font-size: .85rem; margin: .4rem 0; }
+  @media print {
+    .sidebar, button, .filters, .fnav, textarea, .tabbar, .essentials-toggle, .detail-note { display: none !important; }
+    .tab, .stepcard.detail { display: block !important; }
+    .wrap { display: block; padding: 0; } .js .fb, .expect, .frame { display: block !important; }
+    details > *, details.deep > * { display: block !important; }
+  }
+</style>
+<body data-layout="{{LAYOUT}}">
+<div class="wrap">
+<aside class="sidebar">
+{{TOC}}
+{{NOTES}}
+</aside>
+<main>
+{{HEADER}}
+{{SECTIONS}}
+</main>
+</div>
+<script id="lesson-data" type="application/json">{{DATA}}</script>
+<script>
+(() => {
+  document.documentElement.classList.add("js");
+  const data = JSON.parse(document.getElementById("lesson-data").textContent);
+  const KEY = "explain-diff:" + data.pageId + ":";
+  const store = {
+    get: (k, d) => { try { return JSON.parse(localStorage.getItem(KEY + k)) ?? d; } catch { return d; } },
+    set: (k, v) => { try { localStorage.setItem(KEY + k, JSON.stringify(v)); } catch {} },
+  };
+  const copy = async (text, btn) => {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t);
+      t.select(); try { document.execCommand("copy"); } catch {} t.remove();
+    }
+    if (btn) { const old = btn.textContent; btn.textContent = "copied"; btn.classList.add("done"); setTimeout(() => { btn.textContent = old; btn.classList.remove("done"); }, 1400); }
+  };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("button.copy[data-copy]");
+    if (b) { e.preventDefault(); copy(b.dataset.copy, b); }
+  });
+
+  // Quiz: shuffle, reveal feedback, keep score, export misses.
+  const answers = store.get("quiz", {});
+  const qs = [...document.querySelectorAll(".q")];
+  // One score per quiz section (each track has its own).
+  const updateScore = () => {
+    document.querySelectorAll("section.quiz").forEach((sec) => {
+      const mine = [...sec.querySelectorAll(".q")].map((q) => answers[q.id]).filter(Boolean);
+      const score = sec.querySelector(".score");
+      if (!score || !mine.length) return;
+      const total = sec.querySelectorAll(".q").length, right = mine.filter((a) => a.correct).length;
+      score.hidden = false;
+      score.querySelector(".scoretext").textContent = `${right} of ${mine.length} right` + (mine.length < total ? ` (${total - mine.length} left)` : "");
+    });
+  };
+  qs.forEach((q) => {
+    const box = q.querySelector(".opts");
+    const opts = [...box.children];
+    for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
+    opts.forEach((o) => box.appendChild(o));
+    const reveal = (btn, record) => {
+      const right = btn.dataset.correct === "1";
+      opts.forEach((o) => {
+        const b = o.querySelector(".pick");
+        b.disabled = true;
+        if (b === btn) { b.classList.add(right ? "right" : "wrong"); o.querySelector(".fb").classList.add("show"); }
+        if (b.dataset.correct === "1") { b.classList.add("right"); o.querySelector(".fb").classList.add("show"); }
+      });
+      if (record) { answers[q.id] = { correct: right, picked: btn.textContent.trim() }; store.set("quiz", answers); }
+      updateScore();
+    };
+    opts.forEach((o) => o.querySelector(".pick").addEventListener("click", (e) => reveal(e.currentTarget, true)));
+    const prev = answers[q.id];
+    if (prev) { const b = opts.map((o) => o.querySelector(".pick")).find((b) => b.textContent.trim() === prev.picked); if (b) reveal(b, false); }
+  });
+  document.querySelectorAll(".export-misses").forEach((btn) => btn.addEventListener("click", (e) => {
+    const misses = data.quiz.filter((q) => answers[q.id] && !answers[q.id].correct);
+    const lines = [`I worked through the explain-diff page "${data.title}" (${data.provenance}).`];
+    if (!misses.length) lines.push("I answered every question I tried correctly. What should I look at next?");
+    else {
+      lines.push("I got these questions wrong. Explain the reasoning I missed, using the code:");
+      misses.forEach((q) => lines.push(`- ${q.track ? `[${q.track}] ` : ""}${q.stem}\n  I picked: ${answers[q.id].picked}\n  Correct: ${q.options.find((o) => o.correct)?.text}`));
+    }
+    copy(lines.join("\n"), e.currentTarget);
+  }));
+  updateScore();
+
+  // Try it: keep predictions; reveal on demand.
+  document.querySelectorAll(".try").forEach((t) => {
+    const ta = t.querySelector("textarea");
+    if (ta) { ta.value = store.get("predict:" + ta.dataset.key, ""); ta.addEventListener("input", () => store.set("predict:" + ta.dataset.key, ta.value)); }
+    t.querySelector("button.reveal")?.addEventListener("click", (e) => { t.querySelector(".expect").hidden = false; e.currentTarget.hidden = true; });
+  });
+
+  // Diagram series: each frame adds one part.
+  document.querySelectorAll(".frames").forEach((fs) => {
+    const frames = [...fs.querySelectorAll(".frame")];
+    let i = 0;
+    const show = () => { frames.forEach((f, k) => (f.hidden = k !== i)); fs.querySelector(".fpos").textContent = `${i + 1} / ${frames.length}`;
+      fs.querySelector(".fprev").disabled = i === 0; fs.querySelector(".fnext").disabled = i === frames.length - 1; };
+    fs.querySelector(".fprev").addEventListener("click", () => { i = Math.max(0, i - 1); show(); });
+    fs.querySelector(".fnext").addEventListener("click", () => { i = Math.min(frames.length - 1, i + 1); show(); });
+    show();
+  });
+
+  // Experiment deltas: filter by status.
+  document.querySelectorAll(".filters").forEach((bar) => {
+    const table = bar.nextElementSibling;
+    bar.addEventListener("click", (e) => {
+      const b = e.target.closest("button.filter"); if (!b) return;
+      b.classList.toggle("on");
+      const on = new Set([...bar.querySelectorAll("button.on")].map((x) => x.dataset.status));
+      table.querySelectorAll("tbody tr").forEach((r) => (r.hidden = !on.has(r.dataset.status)));
+    });
+  });
+
+  // Notes stay with this page across tracks and reloads.
+  const notes = document.getElementById("notesbox");
+  if (notes) { notes.value = store.get("notes", ""); notes.addEventListener("input", () => store.set("notes", notes.value)); }
+  document.getElementById("notescopy")?.addEventListener("click", (e) => {
+    const q = notes.value.trim();
+    if (!q) return;
+    const here = document.querySelector(".tab-btn.active, .toc a.here")?.textContent ?? "";
+    copy(`About the explain-diff page "${data.title}" (${data.provenance})${here ? `, section "${here}"` : ""}:\n${q}\nAnswer from the code and cite file:line.`, e.currentTarget);
+  });
+
+  // Code references: show the excerpt beside the link instead of jumping to the appendix.
+  let pop = null;
+  const closePop = () => { pop?.remove(); pop = null; };
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a.ref");
+    if (a) {
+      const src = document.getElementById(a.getAttribute("href").slice(1));
+      if (!src) return;
+      e.preventDefault(); closePop();
+      pop = document.createElement("div"); pop.className = "popover";
+      pop.innerHTML = '<button type="button" class="close">close</button>';
+      pop.appendChild(src.cloneNode(true)).removeAttribute("id");
+      document.body.appendChild(pop);
+      const r = a.getBoundingClientRect();
+      pop.style.top = `${scrollY + r.bottom + 6}px`;
+      pop.style.left = `${Math.max(8, Math.min(scrollX + r.left, scrollX + innerWidth - pop.offsetWidth - 8))}px`;
+      pop.querySelector(".close").addEventListener("click", closePop);
+      return;
+    }
+    if (pop && !e.target.closest(".popover")) closePop();
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+
+  // Essentials mode: detail steps fold away until the reader asks for everything.
+  const ess = document.getElementById("essentials");
+  const setEss = (on) => { document.documentElement.classList.toggle("essentials", on); if (ess) ess.checked = on; store.set("essentials", on); };
+  if (ess) { setEss(store.get("essentials", true)); ess.addEventListener("change", () => setEss(ess.checked)); }
+  document.addEventListener("click", (e) => { if (e.target.closest(".show-all")) setEss(false); });
+
+  // Tracks layout: one tab visible at a time; the hash selects it; links into another tab switch to it first.
+  if (data.layout === "tracks") {
+    const tabs = [...document.querySelectorAll("section.tab")];
+    const btns = [...document.querySelectorAll(".tab-btn")];
+    const tocTabs = [...document.querySelectorAll(".toc li.tabref")];
+    const visited = new Set(store.get("visited", []));
+    const bar = document.querySelector(".progress .bar");
+    const show = (id, scrollTo) => {
+      const tab = tabs.find((t) => t.id === id) ?? tabs[0];
+      tabs.forEach((t) => t.classList.toggle("active", t === tab));
+      btns.forEach((b) => b.classList.toggle("active", b.getAttribute("href") === `#${tab.id}`));
+      tocTabs.forEach((li) => li.classList.toggle("active", li.querySelector("a").getAttribute("href") === `#${tab.id}`));
+      visited.add(tab.id); store.set("visited", [...visited]);
+      tocTabs.forEach((li) => li.querySelector("a").classList.toggle("read", visited.has(li.querySelector("a").getAttribute("href").slice(1))));
+      if (bar) bar.style.width = `${Math.round((100 * visited.size) / Math.max(1, tabs.length))}%`;
+      if (scrollTo) { const el = document.getElementById(scrollTo); if (el && el.closest(".stepcard.detail")) setEss(false); el?.scrollIntoView({ block: "start" }); }
+      else window.scrollTo({ top: document.querySelector(".tabbar")?.offsetTop ?? 0 });
+    };
+    const route = () => {
+      const h = decodeURIComponent(location.hash.slice(1));
+      if (!h) return show(tabs[0].id);
+      const el = document.getElementById(h);
+      const tab = el?.closest("section.tab");
+      if (el && el.classList.contains("tab")) show(h);
+      else if (tab) show(tab.id, h);
+    };
+    addEventListener("hashchange", route);
+    route();
+    document.addEventListener("keydown", (e) => {
+      if (e.target.closest("textarea, input")) return;
+      if (e.key !== "[" && e.key !== "]") return;
+      const i = tabs.findIndex((t) => t.classList.contains("active"));
+      const j = Math.max(0, Math.min(tabs.length - 1, i + (e.key === "]" ? 1 : -1)));
+      location.hash = tabs[j].id;
+    });
+    return; // the scroll-based progress below is for the single-page layout
+  }
+
+  // Reading progress in the table of contents.
+  const links = [...document.querySelectorAll(".toc a")];
+  const sections = links.map((a) => document.getElementById(a.getAttribute("href").slice(1))).filter(Boolean);
+  const bar = document.querySelector(".progress .bar");
+  const seen = new Set(store.get("seen", []));
+  const onScroll = () => {
+    let cur = sections[0];
+    for (const s of sections) if (s.getBoundingClientRect().top < innerHeight * 0.35) cur = s;
+    if (cur) seen.add(cur.id);
+    links.forEach((a) => { const id = a.getAttribute("href").slice(1); a.classList.toggle("here", cur && id === cur.id); a.classList.toggle("read", seen.has(id)); });
+    if (bar) bar.style.width = `${Math.round((100 * seen.size) / Math.max(1, sections.length))}%`;
+    store.set("seen", [...seen]);
+  };
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+})();
+</script>
+{{MERMAID}}
+</html>

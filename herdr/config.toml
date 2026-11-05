@@ -1,0 +1,110 @@
+onboarding = false
+
+# Required by herdr-annotate over SSH / `herdr --remote`: herdr's default
+# copy-on-select clears the selection on mouse-up, so the plugin (running on the
+# server) sees nothing. With this off the selection survives and
+# `annotate.capture` can read it through herdr's API. Copy explicitly with
+# Ctrl+C. install.sh ensures this key on hosts whose config.toml predates it.
+[ui]
+copy_on_select = false
+
+[[keys.command]]
+key = "prefix+shift+l"
+type = "plugin_action"
+command = "edi.layout-tools.open-editor"
+description = "layout editor"
+
+[[keys.command]]
+key = "prefix+shift+e"
+type = "plugin_action"
+command = "edi.layout-tools.equalize"
+
+# prefix+m went to herdr-annotate's annotation manager -- it is used far more
+# than reshape-main-left, and the grid reshape below is still bound. Left here
+# commented so the collision is visible rather than silently re-added by the
+# config merge in install.sh (which matches blocks by command id).
+# [[keys.command]]
+# key = "prefix+m"
+# type = "plugin_action"
+# command = "edi.layout-tools.reshape-main-left"
+
+[[keys.command]]
+key = "prefix+shift+m"
+type = "plugin_action"
+command = "edi.layout-tools.reshape-main-grid"
+
+[[keys.command]]
+key = ["prefix+!", "prefix+shift+1"]
+type = "shell"
+command = "herdr pane move $HERDR_ACTIVE_PANE_ID --new-tab --focus"
+description = "break pane to new tab"
+
+# prefix+@ is prefix+! one key over: same break-out, but into a workspace you
+# pick by number or name. type = "popup" is the only interactive surface a
+# keybinding gets without writing a plugin.
+[[keys.command]]
+key = ["prefix+@", "prefix+shift+2"]
+type = "popup"
+command = "herdr-move-ws $HERDR_ACTIVE_PANE_ID"
+width = "60%"
+height = 20
+description = "move pane to workspace"
+
+# tmux muscle memory, same mapping as ~/.tmux.conf: prefix+= is
+# select-layout even-horizontal, prefix+_ is even-vertical. herdr has no native
+# even layout, so herdr/bin/herdr-even borrows the layout-tools plugin's
+# in-place replay. Both spellings of the shifted key are bound, same as
+# prefix+! above.
+[[keys.command]]
+key = ["prefix+=", "prefix+shift+="]
+type = "shell"
+command = "herdr-even columns $HERDR_ACTIVE_PANE_ID"
+description = "even horizontal (full-height columns)"
+
+[[keys.command]]
+key = ["prefix+_", "prefix+shift+-"]
+type = "shell"
+command = "herdr-even rows $HERDR_ACTIVE_PANE_ID"
+description = "even vertical (full-width rows)"
+
+# herdr-annotate. The plugin ships no key bindings; these are required.
+# Over SSH, prefix+a itself is broken upstream (herdrdev/herdr#3380) -- use the
+# nvim <leader>a mapping (nvim/herdr-annotate.lua) or invoke the action from the
+# laptop: ssh <host> herdr plugin action invoke annotate.capture
+# Terminal annotations
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate text"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "copy annotations as context"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "copy annotations as context and archive them"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "manage annotations"
+
+# Document review (plannotator-tui, bundled by the full variant)
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "annotate.open"
+description = "review documents in this folder"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "annotate.last"
+description = "review the agent's last reply"

@@ -1,0 +1,23 @@
+{
+  "name": "pi-bash-live-view-fork",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local fork of pi-bash-live-view: PTY-backed live terminal rendering exposed as the dedicated `bash_pty` tool (no `bash` override), uprevved to the @earendil-works scope, with a script(1) PTY backend because node-pty does not work under pi's Bun runtime.",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@xterm/headless": "5.5.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

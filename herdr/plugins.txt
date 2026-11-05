@@ -1,0 +1,9 @@
+# GitHub plugins: owner/repo (optional /subdir). One per line.
+edouard-andrei/herdr-layout-tools
+# herdr-annotate: comment on terminal text (prefix+a), review a folder of
+# markdown (prefix+o), review the agent's last reply (prefix+shift+o), and send
+# the comments back as the agent's next message. Full variant -- it bundles
+# plannotator-tui, which is the document reviewer. The /lite subdir is terminal
+# annotations only; same plugin id, so installing one swaps the other.
+# Keys are NOT added by the plugin; they live in herdr/config.toml.
+plannotator/herdr-annotate

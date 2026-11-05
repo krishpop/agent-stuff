@@ -1,0 +1,163 @@
+#!/usr/bin/env node
+// Move the focused pane into another workspace. Type to filter by name, or
+// type a number to jump straight to that sidebar position; an unmatched name
+// offers to create the workspace.
+//
+//   herdr-move-ws [pane-id]      # bound to prefix+@ in herdr/config.toml
+//
+// `herdr pane move --workspace` needs the opaque id (w1, wD, …), which is the
+// one thing not on screen. A keybinding gets no input surface, so the binding
+// is type = "popup": a session-modal terminal, which is the non-plugin way to
+// be interactive.
+//
+// Styling, key parsing, and mouse handling follow the layout-tools editor
+// popup so both popups look like the same application. `tokens` in particular
+// is imported rather than copied — one read can carry several presses and
+// getting that wrong eats keystrokes.
+import { readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const root = join(homedir(), '.config/herdr/plugins/github');
+const plugin = readdirSync(root).find((d) => d.startsWith('edi.layout-tools-'));
+if (!plugin) {
+  console.error('herdr-move-ws: edi.layout-tools plugin is not installed');
+  process.exit(1);
+}
+const { herdr } = await import(join(root, plugin, 'herdr.mjs'));
+const { tokens } = await import(join(root, plugin, 'editor.mjs'));
+
+const ENTER = '\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1006h'; // alt screen, hidden cursor, SGR mouse
+const LEAVE = '\x1b[?1006l\x1b[?1000l\x1b[?25h\x1b[?1049l';
+const RESET = '\x1b[0m';
+const DIM = '\x1b[2m';
+const BOLD = '\x1b[1m';
+const SEL = '\x1b[7m'; // reverse video reads correctly on every herdr theme
+const RED = '\x1b[31m';
+
+const out = (s) => process.stdout.write(s);
+const cols = () => process.stdout.columns || 80;
+const rows = () => process.stdout.rows || 20;
+const stripLen = (s) => s.replace(/\x1b\[[0-9;]*m/g, '').length;
+const pad = (s, w) => (stripLen(s) > w ? s.slice(0, Math.max(0, w - 1)) + '…' : s + ' '.repeat(w - stripLen(s)));
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+// idle/working/blocked are worth a glance when choosing where to park a pane;
+// unknown is the ordinary shell case and would just add noise on every row.
+const STATUS = { working: '●', idle: '○', blocked: '◆', done: '✓' };
+
+const pane = process.argv[2] || process.env.HERDR_ACTIVE_PANE_ID || process.env.HERDR_PANE_ID;
+if (!pane) {
+  console.error('herdr-move-ws: no pane id (pass one or set HERDR_ACTIVE_PANE_ID)');
+  process.exit(1);
+}
+
+const source = herdr('pane', 'get', pane).result.pane;
+const all = herdr('workspace', 'list').result.workspaces;
+
+// A digit query is the sidebar number and nothing else: substring-matching it
+// against names too made "6" collide with labels like example-project-64.
+function filtered(q) {
+  if (!q) return all;
+  if (/^\d+$/.test(q)) return all.filter((w) => String(w.number) === q);
+  return all.filter((w) => w.label.toLowerCase().includes(q.toLowerCase()));
+}
+const creating = (state) => state.q !== '' && !/^\d+$/.test(state.q);
+const rowsOf = (state) => [...filtered(state.q), ...(creating(state) ? [{ create: true }] : [])];
+
+function frame(state) {
+  const W = cols();
+  const list = rowsOf(state);
+  const label = source.title || source.agent || (source.cwd || '').split('/').filter(Boolean).pop() || '';
+  const lines = [];
+
+  lines.push(` ${BOLD}Move pane${RESET} ${DIM}·${RESET} ${pane}${label ? ` ${DIM}${label}${RESET}` : ''}`);
+  lines.push(` ${DIM}${'─'.repeat(Math.max(0, W - 2))}${RESET}`);
+  lines.push(` ${DIM}filter${RESET} ${state.q}${SEL} ${RESET}${state.q ? '' : `${DIM}  name or number${RESET}`}`);
+  lines.push('');
+
+  state.hit = { top: lines.length, count: list.length };
+  const room = Math.max(1, rows() - lines.length - 2);
+  for (const [i, w] of list.slice(0, room).entries()) {
+    const text = w.create
+      ? ` ＋ create workspace ${BOLD}${state.q}${RESET}`
+      : ` ${String(w.number).padStart(2)}  ${pad(w.label, Math.min(30, W - 34))}  ` +
+        `${DIM}${pad(`${plural(w.tab_count, 'tab')}, ${plural(w.pane_count, 'pane')}`, 20)}${RESET}` +
+        `${STATUS[w.agent_status] ?? ' '}${w.workspace_id === source.workspace_id ? ` ${DIM}here${RESET}` : ''}`;
+    const row = pad(`${i === state.index ? '▸' : ' '}${text}`, W - 1);
+    lines.push(i === state.index ? `${SEL}${row}${RESET}` : row);
+  }
+  if (list.length === 0) lines.push(` ${DIM}no workspace matches ${state.q}${RESET}`);
+
+  while (lines.length < rows() - 1) lines.push('');
+  lines.push(
+    state.error
+      ? ` ${RED}${pad(state.error, W - 2)}${RESET}`
+      : ` ${DIM}↑↓${RESET} select  ${DIM}⏎${RESET} move  ${DIM}⌫${RESET} filter  ${DIM}esc${RESET} cancel`
+  );
+  return lines.slice(0, rows());
+}
+
+const draw = (state) => out('\x1b[H\x1b[2J' + frame(state).map((l) => l + '\x1b[K').join('\r\n'));
+
+function cleanup() {
+  out(LEAVE);
+  process.stdin.setRawMode?.(false);
+}
+
+function apply(state) {
+  const target = rowsOf(state)[state.index];
+  if (!target) return;
+  try {
+    // --workspace is only legal alongside --new-tab: herdr lands the pane in a
+    // new tab of that workspace, never merged into an existing tab's splits.
+    if (target.create) herdr('pane', 'move', pane, '--new-workspace', '--label', state.q, '--focus');
+    else herdr('pane', 'move', pane, '--new-tab', '--workspace', target.workspace_id, '--focus');
+    cleanup();
+    process.exit(0);
+  } catch (e) {
+    // The popup is the only place this message can be read — it dies with the process.
+    state.error = `move failed: ${String(e.message).split('\n')[0]}`;
+    draw(state);
+  }
+}
+
+function onKey(state, s) {
+  const list = rowsOf(state);
+  const move = (d) => list.length && (state.index = (state.index + d + list.length) % list.length);
+  if (s === '\x1b' || s === '\x03') return void (cleanup(), process.exit(0));
+  else if (s === '\x1b[A' || s === '\x1bOA' || s === '\x10') move(-1);
+  else if (s === '\x1b[B' || s === '\x1bOB' || s === '\x0e') move(1);
+  else if (s === '\r' || s === '\n') return apply(state);
+  else if (s === '\x7f' || s === '\b') (state.q = state.q.slice(0, -1)), (state.index = 0);
+  else if (s === '\x15') (state.q = ''), (state.index = 0);
+  else if (s.length === 1 && s >= ' ') (state.q += s), (state.index = 0);
+  else return;
+  state.error = null;
+  draw(state);
+}
+
+function onMouse(state, button, x, y, kind) {
+  if (button === 64 || button === 65) return onKey(state, button === 64 ? '\x1b[A' : '\x1b[B');
+  if (kind !== 'M' || button !== 0) return;
+  const i = y - 1 - state.hit.top;
+  if (i < 0 || i >= state.hit.count) return;
+  if (i === state.index) return apply(state); // click the highlighted row again = move
+  state.index = i;
+  draw(state);
+}
+
+const state = { q: '', index: 0, error: null, hit: { top: 0, count: 0 } };
+out(ENTER);
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdin.on('data', (buf) => {
+  for (const tok of tokens(buf.toString('utf8'))) {
+    const m = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/.exec(tok);
+    if (m) onMouse(state, +m[1], +m[2], +m[3], m[4]);
+    else onKey(state, tok);
+  }
+});
+process.stdout.on('resize', () => draw(state));
+for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(sig, () => (cleanup(), process.exit(0)));
+draw(state);

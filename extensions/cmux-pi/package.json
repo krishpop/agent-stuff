@@ -1,0 +1,21 @@
+{
+  "name": "pi-cmux-pi",
+  "version": "0.2.0",
+  "private": true,
+  "description": "cmux from Pi: /cmux-pi session-tree pane, plus a cmux tool for links, workspaces, ssh/tmux, and pane control",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "typebox": "*"
+  }
+}

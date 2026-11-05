@@ -1,0 +1,30 @@
+# Optional package pins. Install with ./install.sh --packages.
+git:github.com/DietrichGebert/ponytail
+npm:@hypabolic/pi-hypa@0.1.14
+npm:pi-context-tree@0.1.1
+@npm-global @pi-context-tree/pitree@0.3.1
+npm:pi-btw@0.4.1
+npm:@nicknisi/pi-answer@0.2.1
+@no-extensions npm:@cad0p/pi-napkin@0.7.2
+npm:@mrclrchtr/supi-review@5.0.0
+npm:@thurstonsand/pi-wt@1.15.0
+npm:pi-resume-claude@0.1.5
+npm:pi-tool-display@0.5.0
+npm:@tmustier/pi-nes@0.2.42
+npm:pi-web-access@0.24.0
+npm:pi-session-tree-browser@0.1.1
+npm:@narumitw/pi-goal@0.53.1
+npm:pi-herdr-agents@1.4.2
+@remove npm:@hk_net/pi-thinking-command
+npm:pi-long-task@0.3.16
+npm:pi-background-tasks@2.5.0
+@remove npm:pi-subagents
+@remove npm:pi-rewind-unwind
+@remove npm:pi-bash-live-view
+@remove npm:pi-claude-marketplace
+npm:@osolmaz/pi-workflows@0.16.6
+npm:semantic-review@0.3.0
+git:github.com/nicobailon/visual-explainer
+npm:@plannotator/pi-extension@0.27.13
+@darwin npm:glimpseui@0.8.1
+@darwin git:github.com/firecrawl/pi-firecrawl

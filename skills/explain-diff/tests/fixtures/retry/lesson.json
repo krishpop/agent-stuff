@@ -1,0 +1,294 @@
+{
+  "version": 1,
+  "title": "fetch_user retries transient network errors",
+  "tldr": "`fetch_user` now tries up to three times when the network times out or drops, waiting a little longer each time. The config change doubles the learning-rate warmup.",
+  "intents": [
+    {
+      "id": "retry",
+      "text": "Retry `fetch_user` when CI hits a network timeout",
+      "quote": "fetchUser fails randomly in CI. Add a retry.",
+      "source": "user",
+      "status": "done"
+    },
+    {
+      "id": "no-retry-404",
+      "text": "Do not retry when the user does not exist",
+      "source": "inferred",
+      "status": "partial",
+      "evidence": "Only `TimeoutError` and `ConnectionError` retry, so an HTTP 404 is never caught here. Whether the client raises on 404 at all is not visible in this diff."
+    }
+  ],
+  "unasked": [
+    {
+      "text": "The learning-rate warmup doubles from 500 to 1000 steps. No request in the session mentions it.",
+      "targets": [
+        {
+          "path": "configs/train.yaml",
+          "side": "new",
+          "start": 3,
+          "end": 3
+        }
+      ]
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "d-flow",
+      "kind": "flow",
+      "caption": "A failed call loops back until the attempts run out; only the last failure reaches the caller.",
+      "frames": [
+        {
+          "nodes": [
+            {
+              "id": "c",
+              "label": "caller"
+            },
+            {
+              "id": "f",
+              "label": "fetch_user",
+              "tone": "touch"
+            }
+          ],
+          "edges": [
+            {
+              "from": "c",
+              "to": "f",
+              "label": "user_id=42"
+            }
+          ],
+          "caption": "Before: one call, one chance."
+        },
+        {
+          "nodes": [
+            {
+              "id": "c",
+              "label": "caller"
+            },
+            {
+              "id": "f",
+              "label": "fetch_user",
+              "tone": "touch"
+            },
+            {
+              "id": "g",
+              "label": "client.get"
+            }
+          ],
+          "edges": [
+            {
+              "from": "c",
+              "to": "f",
+              "label": "user_id=42"
+            },
+            {
+              "from": "f",
+              "to": "g",
+              "label": "attempt 1..3"
+            }
+          ],
+          "caption": "After: the call sits inside a loop of up to three attempts."
+        },
+        {
+          "nodes": [
+            {
+              "id": "c",
+              "label": "caller"
+            },
+            {
+              "id": "f",
+              "label": "fetch_user",
+              "tone": "touch"
+            },
+            {
+              "id": "g",
+              "label": "client.get"
+            },
+            {
+              "id": "e",
+              "label": "TimeoutError on attempt 3",
+              "tone": "bad"
+            }
+          ],
+          "edges": [
+            {
+              "from": "c",
+              "to": "f",
+              "label": "user_id=42"
+            },
+            {
+              "from": "f",
+              "to": "g",
+              "label": "attempt 1..3"
+            },
+            {
+              "from": "g",
+              "to": "e",
+              "label": "raise"
+            }
+          ],
+          "caption": "The third failure is re-raised, so the caller still sees the error."
+        }
+      ]
+    }
+  ],
+  "background": {
+    "deep": "A **transient** error is one that may succeed if you simply try again, such as a timeout. A **permanent** error, such as asking for a user that does not exist, fails the same way every time. Retrying a permanent error only wastes time.",
+    "narrow": "`fetch_user` in [[src/fetch.py:6-14]] wraps one HTTP GET through a `client` object. Before this change it made exactly one call and let any exception escape."
+  },
+  "intuition": "Picture CI calling `fetch_user(client, 42)` while the network blips. Attempt 1 times out, the code sleeps 0.1 s; attempt 2 times out, it sleeps 0.2 s; attempt 3 succeeds and returns the JSON. If attempt 3 had also failed, the error would reach the caller exactly as before, just 0.3 s later.",
+  "steps": [
+    {
+      "id": "s-transient",
+      "title": "Name the errors worth retrying",
+      "kind": "change",
+      "intents": [
+        "retry",
+        "no-retry-404"
+      ],
+      "body": "A module-level tuple lists the two exception types that count as transient. Everything else, including whatever the client raises for a missing user, escapes on the first attempt.",
+      "targets": [
+        {
+          "path": "src/fetch.py",
+          "side": "new",
+          "start": 3,
+          "end": 3,
+          "highlight": "(TimeoutError, ConnectionError)"
+        }
+      ]
+    },
+    {
+      "id": "s-loop",
+      "title": "Wrap the call in a bounded loop",
+      "kind": "change",
+      "intents": [
+        "retry"
+      ],
+      "body": "The new `attempts=3` parameter bounds the loop. `range(1, attempts + 1)` counts attempts from 1, which makes the last-attempt check read naturally: `attempt == attempts` re-raises instead of sleeping.",
+      "targets": [
+        {
+          "path": "src/fetch.py",
+          "side": "new",
+          "start": 6,
+          "end": 13,
+          "highlight": "attempt == attempts"
+        }
+      ]
+    },
+    {
+      "id": "s-backoff",
+      "title": "Wait a little longer each time",
+      "kind": "change",
+      "intents": [
+        "retry"
+      ],
+      "body": "The sleep grows linearly: 0.1 s after the first failure, 0.2 s after the second. With three attempts the worst case adds 0.3 s before the final error.",
+      "targets": [
+        {
+          "path": "src/fetch.py",
+          "side": "new",
+          "start": 14,
+          "end": 14,
+          "highlight": "0.1 * attempt"
+        }
+      ]
+    },
+    {
+      "id": "s-warmup",
+      "title": "Double the learning-rate warmup",
+      "kind": "supporting",
+      "intents": [],
+      "body": "`optimizer.warmup_steps` goes from 500 to 1000. Nothing in `src/` reads it, so it does not interact with the retry change.",
+      "targets": [
+        {
+          "path": "configs/train.yaml",
+          "side": "new",
+          "start": 3,
+          "end": 3
+        }
+      ]
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q-trace",
+      "shape": "trace",
+      "stem": "The client raises `TimeoutError` on attempts 1 and 2, then returns normally. How long does `fetch_user` sleep in total?",
+      "options": [
+        {
+          "text": "0.6 seconds",
+          "feedback": "That counts a sleep after the successful third attempt too. The `return` exits the loop before any sleep."
+        },
+        {
+          "text": "0.3 seconds",
+          "correct": true,
+          "feedback": "It sleeps 0.1 s after attempt 1 and 0.2 s after attempt 2. Attempt 3 returns, so there is no third sleep."
+        },
+        {
+          "text": "0.2 seconds",
+          "feedback": "That is only the second sleep. The first failure also sleeps, for 0.1 s."
+        }
+      ]
+    },
+    {
+      "id": "q-break",
+      "shape": "spot-break",
+      "stem": "Suppose the `if attempt == attempts: raise` lines were deleted. What happens when all three attempts time out?",
+      "options": [
+        {
+          "text": "It retries forever",
+          "feedback": "`range(1, attempts + 1)` still ends after three iterations. The loop is bounded by the range, not by the raise."
+        },
+        {
+          "text": "The third error escapes",
+          "feedback": "The `except` clause catches it and then sleeps. Without the explicit `raise`, nothing re-raises it."
+        },
+        {
+          "text": "The function returns None",
+          "correct": true,
+          "feedback": "The loop finishes without a `return` or a `raise`, so Python returns `None`. The caller gets no error and no data."
+        }
+      ]
+    },
+    {
+      "id": "q-other",
+      "shape": "other-choice",
+      "stem": "When would retrying every exception, not just the two in `RETRYABLE`, be the better choice?",
+      "options": [
+        {
+          "text": "When every failure is transient",
+          "correct": true,
+          "feedback": "If no error can be permanent, catching everything costs nothing. Here a missing user is permanent, so retrying it would only delay the same failure."
+        },
+        {
+          "text": "When the sleep is very short",
+          "feedback": "A short sleep makes wasted retries cheaper, but they are still wasted for permanent errors. The type of error decides, not the delay."
+        },
+        {
+          "text": "When attempts is set to one",
+          "feedback": "With one attempt nothing is retried at all, so the choice of exceptions no longer matters."
+        }
+      ]
+    }
+  ],
+  "tryIt": [
+    {
+      "id": "t-flaky",
+      "title": "Watch it survive two timeouts",
+      "predict": "A fake client fails twice with `TimeoutError`, then succeeds. Predict the printed result and the number of calls.",
+      "command": "python3 -c \"import src.fetch as f\nclass C:\n  n=0\n  def get(s,u):\n    C.n+=1\n    if C.n<3: raise TimeoutError\n    class R:\n      json=lambda s:{'id':42}\n    return R()\nprint(f.fetch_user(C(),42), C.n)\"",
+      "lookFor": "The dict and the call count on one line.",
+      "expect": "`{'id': 42} 3`: two failed calls, then the third returns."
+    }
+  ],
+  "unknowns": [
+    "Whether the real client raises `TimeoutError` or wraps it in its own exception type. If it wraps it, nothing retries."
+  ],
+  "connections": [
+    {
+      "kind": "note",
+      "label": "Python exceptions: built-in hierarchy",
+      "url": "https://docs.python.org/3/library/exceptions.html#exception-hierarchy",
+      "why": "Where `TimeoutError` and `ConnectionError` sit; both are `OSError` subclasses."
+    }
+  ]
+}

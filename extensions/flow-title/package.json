@@ -1,0 +1,19 @@
+{
+  "name": "pi-flow-title",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Startup header: a curvy blue Greek pi with an animated shimmer",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./flow-title.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

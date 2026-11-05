@@ -1,0 +1,22 @@
+{
+  "name": "pi-rewind-unwind-quiet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "pi-rewind-unwind with its /tree file-restore prompt suppressed, so pi-context-tree's /crop can rewind the leaf without asking to overwrite files. /undo and undo_files are untouched.",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pi-rewind-unwind": "0.2.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

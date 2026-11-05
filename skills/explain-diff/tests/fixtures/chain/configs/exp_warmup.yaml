@@ -1,0 +1,10 @@
+# the experiment: longer warmup, higher lr
+optimizer:
+  warmup: 2000
+  lr: 0.002
+trainer:
+  batch: 64
+train_args:
+  max-iters: 1000
+data:
+  datasets: [c]
